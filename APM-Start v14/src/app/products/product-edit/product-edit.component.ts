@@ -1,28 +1,58 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 
 import { MessageService } from '../../messages/message.service';
 
-import { Product } from '../product';
+import { Product, ProductResolved } from '../product';
 import { ProductService } from '../product.service';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Component({
   templateUrl: './product-edit.component.html',
   styleUrls: ['./product-edit.component.css']
 })
-export class ProductEditComponent {
+export class ProductEditComponent implements OnInit{
   pageTitle = 'Product Edit';
   errorMessage = '';
 
-  product: Product | null = null;
+  private dataIsValid: {[key: string]: boolean} = {};
+
+  get isDirty(): boolean {
+     return JSON.stringify(this.originalProduct) !== JSON.stringify(this.currentProduct);
+  }
+
+  private currentProduct: Product | null = null;
+  private originalProduct: Product | null = null;
+
+  get product(): Product | null {
+    return this.currentProduct;
+  }
+
+  set product(value: Product | null) {
+    if (value) {
+      this.currentProduct = value;
+      this.originalProduct = {...value};
+    } else {
+      this.currentProduct = null;
+      this.originalProduct = null;
+    }
+  }
 
   constructor(private productService: ProductService,
-    private messageService: MessageService) { }
-
-  getProduct(id: number): void {
-    this.productService.getProduct(id).subscribe({
-      next: product => this.onProductRetrieved(product),
-      error: err => this.errorMessage = err
-    });
+    private messageService: MessageService,
+    private route: ActivatedRoute,
+    private router: Router) { }
+  
+  ngOnInit(): void {
+    this.route.data.subscribe({
+      next: (data) => {
+        const retrievedData: ProductResolved = data['product'];
+        this.errorMessage = retrievedData.error || '';
+        if (retrievedData.product) this.onProductRetrieved(retrievedData.product);
+      },
+      error: (err) => {
+        
+      },
+    })
   }
 
   onProductRetrieved(product: Product): void {
@@ -53,6 +83,20 @@ export class ProductEditComponent {
       }
   }
 
+  isValid(path?: string) {
+    this.validate();
+    if (path) {
+      return this.dataIsValid[path];
+    }
+    return (this.dataIsValid &&
+      Object.keys(this.dataIsValid).every(d => this.dataIsValid[d] === true));
+  }
+
+  reset(): void {
+    this.dataIsValid = {};
+    this.product = null;
+  }
+
   saveProduct(): void {
     if (this.product) {
       if (this.product.id === 0) {
@@ -75,7 +119,30 @@ export class ProductEditComponent {
     if (message) {
       this.messageService.addMessage(message);
     }
-
+    this.reset();
     // Navigate back to the product list
+    this.router.navigate(['/products']);
+  }
+
+  validate(): void {
+    //Clear the validation object
+    this.dataIsValid = {}
+
+    //'info' tab
+    if (this.product?.productName &&
+      this.product.productName.length >= 3 &&
+      this.product.productCode) {
+      this.dataIsValid['info'] = true;
+    } else {
+      this.dataIsValid['info'] = false;
+    }
+
+    if (this.product?.category &&
+      this.product.category.length >= 3 &&
+      this.product.productCode) {
+      this.dataIsValid['tags'] = true;
+    } else {
+      this.dataIsValid['tags'] = false;
+    }
   }
 }
